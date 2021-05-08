@@ -182,7 +182,7 @@ data_list.append('The composite SENTIMENT of recent logs (used VADER sentiment a
 data_table_df = pd.DataFrame({'Cache parameters used to form the recommendations:': data_list})
 
 # User can choose what they want to view:
-st.header('YourNextGeocache: A recommender app for avid geocachers')
+st.header('YourNextGeocache: An app for avid geocachers')
 st.write('')
 st.write('')
 
@@ -218,6 +218,7 @@ if disp_mode == 'Get Cache Recommendations':
     
     if code in codes:
         
+        st.write('')
         st.write('')
         st.write('Here are the recommended caches, if you liked ' + code)
         ndx = list(recs[recs['code']==code]['startoption'])[0]
