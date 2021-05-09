@@ -182,6 +182,8 @@ data_list.append('The composite SENTIMENT of recent logs (used VADER sentiment a
 data_table_df = pd.DataFrame({'Cache parameters used to form the recommendations:': data_list})
 
 # User can choose what they want to view:
+st.write("Please leave me feedback! (https://forms.gle/mrDWbSK5nEaFUYEf7)")
+st.write('')
 st.header('YourNextGeocache: An app for avid geocachers')
 st.write('')
 st.write('')
