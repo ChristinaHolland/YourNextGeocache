@@ -1,8 +1,22 @@
 
 # imports:
 import streamlit as st
+import pickle
 import pandas as pd
 import numpy as np
+
+# User can choose what they want to view:
+st.markdown('<a target="_blank" href="https://forms.gle/mrDWbSK5nEaFUYEf7">Please leave me feedback!</a>', unsafe_allow_html=True)
+st.write('')
+st.header('YourNextGeocache: An app for avid geocachers')
+st.write('')
+st.write('')
+
+disp_mode = st.selectbox('Please select what you would like to do now:', 
+                                    ['Get Cache Recommendations', 'Predict Popularity for your Next Cache Placement', 'Learn More About This App'])
+
+st.write()
+
 
 # load in datasets:
 df = pd.read_csv('./data/code_name_label.csv')
@@ -65,155 +79,146 @@ codes = list(df['code'])
 names = list(df['name'])
 names = [name.upper() for name in names]
 
-# SIDE BAR: USER SELECTS STARTING CACHE TO BASE RECOMMENDATIOS ON:
+if disp_mode != 'Predict Popularity for your Next Cache Placement':
 
-search_parameter = 'Unknown'
-code0 = 'Unknown'
-name0 = 'Unknown'
-lat0 = 0
-lon0 = 0
-code = 'Unknown' # The cache code on which the recommendation will be made
+    # SIDE BAR: USER SELECTS STARTING CACHE TO BASE RECOMMENDATIOS ON:
 
-# They can select by cache code, cache name, or by latitude and longitude:
-if search_parameter=='Unknown':
-    st.sidebar.header('How would you like to choose your starting point?')
-    search_parameter = st.sidebar.radio('Select one:', 
-                                    ['By Geo Code (GCXXXXX)', 'By Name', 'By Coordinates'])
+    search_parameter = 'Unknown'
+    code0 = 'Unknown'
+    name0 = 'Unknown'
+    lat0 = 0
+    lon0 = 0
+    code = 'Unknown' # The cache code on which the recommendation will be made
 
-# If they choose to select by cache code:
-if search_parameter=='By Geo Code (GCXXXXX)':
-    
-    # Let them try typing in a code; prompt to retry if needed 
-    # They can also go back up and select one of the other two methods.
-    if code0=='Unknown':
-        code0 = st.sidebar.text_input('Please input the code, starting with G:', value="GCXXXXX")
-        if code0 in codes:
-            code = code0
-        else:
-            st.sidebar.write('Sorry, that cache is not in the dataset, please retry.')
+    # They can select by cache code, cache name, or by latitude and longitude:
+    if search_parameter=='Unknown':
+        st.sidebar.header('How would you like to choose your starting point?')
+        search_parameter = st.sidebar.radio('Select one:', 
+                                        ['By Geo Code (GCXXXXX)', 'By Name', 'By Coordinates'])
 
-# If they choose to select by typing a name:
-if search_parameter=='By Name':
-    
-    if name0=='Unknown':
-        name0 = st.sidebar.text_input('Please type in what you can of the cache name:')
-        name0 = name0.upper()
-        
-        # If they typed the full name perfectly, select the cache and find the cache code
-        if name0 in names:
-            ndx = names.index(name0)
-            code = codes[ndx]
-        
-        # If they typed the name incorrecly, or not the complete name, offer them the 4 closest
-        # matches, alpabetically. 
-        else:
-            names1 = names.copy()
-            names1.append(name0)
-            names1.sort()
-            n = names1.index(name0)
-            n_list = list(range(5))
-            if n>2: 
-                n_list = [(j + n - 2) for j in n_list]
-            if len(names1)-n < 3:
-                n_list = [len(names1)+j for j in list(range(-5,0))]
-            names4closest = [names1[j] for j in n_list]
-            names4closest.remove(name0)
-            options = names4closest
-            retry1 = st.sidebar.radio('Which cache did you mean? (or retry)', options)
-            
-            # If they choose one of the 4 selections, select the cache and get the cache code
-            # They can also try tying in a different name or selecting the cache by code or lat,lon
-            if retry1 in names4closest:
-                ndx = names.index(retry1)
+    # If they choose to select by cache code:
+    if search_parameter=='By Geo Code (GCXXXXX)':
+
+        # Let them try typing in a code; prompt to retry if needed 
+        # They can also go back up and select one of the other two methods.
+        if code0=='Unknown':
+            code0 = st.sidebar.text_input('Please input the code, starting with G:', value="GCXXXXX")
+            if code0 in codes:
+                code = code0
+            else:
+                st.sidebar.write('Sorry, that cache is not in the dataset, please retry.')
+
+    # If they choose to select by typing a name:
+    if search_parameter=='By Name':
+
+        if name0=='Unknown':
+            name0 = st.sidebar.text_input('Please type in what you can of the cache name:')
+            name0 = name0.upper()
+
+            # If they typed the full name perfectly, select the cache and find the cache code
+            if name0 in names:
+                ndx = names.index(name0)
                 code = codes[ndx]
 
-# If they choose to select the cache by lat, lon coordinates:
-if search_parameter=='By Coordinates':
+            # If they typed the name incorrecly, or not the complete name, offer them the 4 closest
+            # matches, alpabetically. 
+            else:
+                names1 = names.copy()
+                names1.append(name0)
+                names1.sort()
+                n = names1.index(name0)
+                n_list = list(range(5))
+                if n>2: 
+                    n_list = [(j + n - 2) for j in n_list]
+                if len(names1)-n < 3:
+                    n_list = [len(names1)+j for j in list(range(-5,0))]
+                names4closest = [names1[j] for j in n_list]
+                names4closest.remove(name0)
+                options = names4closest
+                retry1 = st.sidebar.radio('Which cache did you mean? (or retry)', options)
 
-    # Prompt to input a latitude and longitude:
-    if lat0+lon0==0:
-        lat0str = st.sidebar.text_input('Please input a decimal latitude value between 30 and 36 (north latitude)')
-        lon0str = st.sidebar.text_input('Please input a decimal longitude value between -87 and -81 (west longitude is negative)')
-        
-        # Find the 4 caches in the data that are geographically closest to the input lat, lon:
-        lat0 = pd.to_numeric(lat0str)
-        lon0 = pd.to_numeric(lon0str)
-        # All available lat,lon values:
-        lats = list(df['Y'])
-        lons = list(df['X'])
-        # Subtract the input lat, lon.
-        # The delta lon is also multiplied by the cosine of the latitude, 
-        #    so that distance can be calculated in km on a spherical Earth.
-        lats = [(lat-lat0) for lat in lats]
-        lons = [np.cos(lat0*np.pi/180)*(lon-lon0) for lon in lons]
-        # Distance by Pythagorean theorem:
-        dist = [(6371*np.pi/180)*(lons[j]**2 + lats[j]**2)**0.5 for j in range(df.shape[0])]
-        # Make a temporary pandas dataframe, sort by distance, and select the closest 4 caches:
-        tempdf = pd.DataFrame({'ndex': list(df.index), 'dist': dist, 'code': codes, 'name': names})       
-        tempdf = tempdf.sort_values(by='dist')
-        tempdf = tempdf[0:4]
-        codes1 = list(tempdf['code'])
-        names1 = list(tempdf['name'])
-        
-        # Present the closest 4 caches (geographically) and prompt user to select one.
-        # If they choose one of the 4 selections, select the cache and get the cache code
-        # They can also try tying in a different lat,lon or selecting the cache by code or name.
-        options = [codes1[j]+': '+names1[j] for j in range(4)]
-        retry1 = st.sidebar.radio('Which cache did you mean? (or retry)', options) 
-        if retry1 in options:
-            code = codes1[options.index(retry1)]
-        
-st.sidebar.write('Current starting cache code:' + code)
-st.sidebar.write()
-st.sidebar.write('You can change this at any time.')
+                # If they choose one of the 4 selections, select the cache and get the cache code
+                # They can also try tying in a different name or selecting the cache by code or lat,lon
+                if retry1 in names4closest:
+                    ndx = names.index(retry1)
+                    code = codes[ndx]
 
-# MAIN PAGE: TOGGLE BETWEEN RECOMMENDATION OUTPUT AND "ABOUT THE APP"
+    # If they choose to select the cache by lat, lon coordinates:
+    if search_parameter=='By Coordinates':
 
-data_list = ['CACHE TYPE and CONTAINER SIZE (if there is a container)']
-data_list.append('DIFFICULTY and TERRAIN ratings')
-data_list.append('WHEN it was placed, WHO placed it, and whether it is listed as ACTIVE')
-data_list.append('Whether it has a SHORT DESCRIPTION as well as a LONG DESCRIPTION')
-data_list.append('Whether it has a HINT')
-data_list.append('Whether it is PREMIUM access only or open to all cachers')
-data_list.append('How often it has been FAVORITED')
-data_list.append('Whether is has ever had TRAVEL BUGS in it')
-data_list.append('The frequency of each TYPE of logs left ("found it", "needs maintenence", ...)')
-data_list.append('The composite SENTIMENT of recent logs (used VADER sentiment analysis)')
-data_table_df = pd.DataFrame({'Cache parameters used to form the recommendations:': data_list})
+        # Prompt to input a latitude and longitude:
+        if lat0+lon0==0:
+            lat0str = st.sidebar.text_input('Please input a decimal latitude value between 30 and 36 (north latitude)')
+            lon0str = st.sidebar.text_input('Please input a decimal longitude value between -87 and -81 (west longitude is negative)')
 
-# User can choose what they want to view:
-st.markdown('<a target="_blank" href="https://forms.gle/mrDWbSK5nEaFUYEf7">Please leave me feedback!</a>', unsafe_allow_html=True)
-st.write('')
-st.header('YourNextGeocache: An app for avid geocachers')
-st.write('')
-st.write('')
+            # Find the 4 caches in the data that are geographically closest to the input lat, lon:
+            lat0 = pd.to_numeric(lat0str)
+            lon0 = pd.to_numeric(lon0str)
+            # All available lat,lon values:
+            lats = list(df['Y'])
+            lons = list(df['X'])
+            # Subtract the input lat, lon.
+            # The delta lon is also multiplied by the cosine of the latitude, 
+            #    so that distance can be calculated in km on a spherical Earth.
+            lats = [(lat-lat0) for lat in lats]
+            lons = [np.cos(lat0*np.pi/180)*(lon-lon0) for lon in lons]
+            # Distance by Pythagorean theorem:
+            dist = [(6371*np.pi/180)*(lons[j]**2 + lats[j]**2)**0.5 for j in range(df.shape[0])]
+            # Make a temporary pandas dataframe, sort by distance, and select the closest 4 caches:
+            tempdf = pd.DataFrame({'ndex': list(df.index), 'dist': dist, 'code': codes, 'name': names})       
+            tempdf = tempdf.sort_values(by='dist')
+            tempdf = tempdf[0:4]
+            codes1 = list(tempdf['code'])
+            names1 = list(tempdf['name'])
 
-disp_mode = st.sidebar.radio('Please select what you would like to do now:', 
-                                    ['Get Cache Recommendations', 'Learn More About This App'])
+            # Present the closest 4 caches (geographically) and prompt user to select one.
+            # If they choose one of the 4 selections, select the cache and get the cache code
+            # They can also try tying in a different lat,lon or selecting the cache by code or name.
+            options = [codes1[j]+': '+names1[j] for j in range(4)]
+            retry1 = st.sidebar.radio('Which cache did you mean? (or retry)', options) 
+            if retry1 in options:
+                code = codes1[options.index(retry1)]
 
-st.write()
+    st.sidebar.write('Current starting cache code:' + code)
+    st.sidebar.write()
+    st.sidebar.write('You can change this at any time.')
 
-# If they want to see the recommendations, show them:
+    # MAIN PAGE: TOGGLE BETWEEN RECOMMENDATION OUTPUT AND "ABOUT THE APP"
 
-start_options = []
-start_options.append('You picked a somewhat unusual cache - there are no other caches in our 12000+ within the same KMeans cluster.')
-start_options.append('Here are all of the caches within the same KMeans cluster:\n')
-start_options.append('There were many caches within the same KMeans cluster, so here are the 5 that are geographically closest:\n')
+    data_list = ['CACHE TYPE and CONTAINER SIZE (if there is a container)']
+    data_list.append('DIFFICULTY and TERRAIN ratings')
+    data_list.append('WHEN it was placed, WHO placed it, and whether it is listed as ACTIVE')
+    data_list.append('Whether it has a SHORT DESCRIPTION as well as a LONG DESCRIPTION')
+    data_list.append('Whether it has a HINT')
+    data_list.append('Whether it is PREMIUM access only or open to all cachers')
+    data_list.append('How often it has been FAVORITED')
+    data_list.append('Whether is has ever had TRAVEL BUGS in it')
+    data_list.append('The frequency of each TYPE of logs left ("found it", "needs maintenence", ...)')
+    data_list.append('The composite SENTIMENT of recent logs (used VADER sentiment analysis)')
+    data_table_df = pd.DataFrame({'Cache parameters used to form the recommendations:': data_list})
 
-mid_options = []
-mid_options.append('\nThese are all nice and easy and the terrain should be not too bad.')
-mid_options.append('\nThese are all nice and easy and some have some rough terrain.')
-mid_options.append('\nThese are all nice and easy and hiking boots and TecNu may be in order for these.')
-mid_options.append('\nSome of these are higher difficulty and the terrain should be not too bad.')
-mid_options.append('\nSome of these are higher difficulty and some have some rough terrain.')
-mid_options.append('\nSome of these are higher difficulty and hiking boots and TecNu may be in order for these.')
-mid_options.append('\nBetter put on your thinking cap for these tough caches and the terrain should be not too bad.')
-mid_options.append('\nBetter put on your thinking cap for these tough caches and some have some rough terrain.')
-mid_options.append('\nBetter put on your thinking cap for these tough caches and hiking boots and TecNu may be in order for these.')
 
-part2 =  '\n\nHere are the five caches with the lowest Cosine Distance from your cache. Note that cos dist is always between 0 and 2.\n'
+    # If they want to see the recommendations, show them:
 
-ending = '\n\nThank you, and have fun! Email me at clh@cholland.me if you have any comments or feedback.'
+    start_options = []
+    start_options.append('You picked a somewhat unusual cache - there are no other caches in our 12000+ within the same KMeans cluster.')
+    start_options.append('Here are all of the caches within the same KMeans cluster:\n')
+    start_options.append('There were many caches within the same KMeans cluster, so here are the 5 that are geographically closest:\n')
+
+    mid_options = []
+    mid_options.append('\nThese are all nice and easy and the terrain should be not too bad.')
+    mid_options.append('\nThese are all nice and easy and some have some rough terrain.')
+    mid_options.append('\nThese are all nice and easy and hiking boots and TecNu may be in order for these.')
+    mid_options.append('\nSome of these are higher difficulty and the terrain should be not too bad.')
+    mid_options.append('\nSome of these are higher difficulty and some have some rough terrain.')
+    mid_options.append('\nSome of these are higher difficulty and hiking boots and TecNu may be in order for these.')
+    mid_options.append('\nBetter put on your thinking cap for these tough caches and the terrain should be not too bad.')
+    mid_options.append('\nBetter put on your thinking cap for these tough caches and some have some rough terrain.')
+    mid_options.append('\nBetter put on your thinking cap for these tough caches and hiking boots and TecNu may be in order for these.')
+
+    part2 =  '\n\nHere are the five caches with the lowest Cosine Distance from your cache. Note that cos dist is always between 0 and 2.\n'
+
+    ending = '\n\nThank you, and have fun! Email me at clh@cholland.me if you have any comments or feedback.'
 
 
 if disp_mode == 'Get Cache Recommendations':
@@ -276,4 +281,95 @@ if disp_mode == 'Learn More About This App':
 
     st.write('Thank you, and have fun! Email me at clh@cholland.me if you have any comments or feedback.')
     
-    
+if disp_mode == 'Predict Popularity for your Next Cache Placement':
+     
+
+    st.title('Planning your next geocache placement')
+
+    st.header('Welcome Geocachers!!')
+    st.write('There are so many things to think about as you plan your next cache placement.')
+    st.write('Obviously it needs to be clever and fun and as water-proof, bug-proof, and muggle-proof as possible, to stand the test of time,')
+    st.write('but beyond that, how can you know if your cache is going to be popular?')
+    st.write('')
+    st.write('This app uses a Random Forest Classifier model, trained on over 12,000 caches in Georgia, to predict FavPoints per cache being at least 2, or less than 2.')
+    st.write('Of the caches used to train the model, 51.9% of them had 0 or 1 Fav Point, 48.1% had 2 or more.')
+    st.write('This model has a precision (correct predictions of FP>=2 / all predictions of FP>=2) of 73%, vs. the NULL model at 51.9%')
+    st.write('')
+    st.write('This model is highly non-linear and depends on a lot of factors - you may be surprised by the results.')
+    st.write('')
+
+
+    filename1 = 'modelfornewcaches.sav'
+    rf = pickle.load(open(filename1, 'rb'))
+
+    st.write('')
+    st.write('Please set your parameters in the sidebar (be sure to scroll to them all), then look below for your prediction.')
+    diff = st.sidebar.slider('Difficulty Level', min_value=1, max_value=5)
+    terr = st.sidebar.slider('Terrain Level', min_value=1, max_value=5)
+    prmm = st.sidebar.radio('Will it be a premium cache?', ['Yes, premium members only', 'No, open to all'])
+    prmm_dict = {'Yes, premium members only': 1, 'No, open to all': 0}
+    shds = st.sidebar.radio('Will you have a short description available (in addition to the full long description)?', ['Yes', 'No'])
+    hint = st.sidebar.radio('Will you include a encrypted hint?', ['Yes', 'No'])
+    ysno_dict = {'Yes': 1, 'No': 0}
+    ctype = st.sidebar.radio('What kind of cache is it?', ['Traditional', 'Earth', 'Event', 'LetterboX', 'Lost & Found Event',
+                                                   'Maze Exhibit', 'Mega Event', 'Multi', 'Mystery', 'Virtual', 'Webcam',
+                                                   'Whereigo', 'Other/NotListed'])
+    cntr = 'none/other'
+    container_caches = ['LetterboX', 'Multi', 'Traditional', 'Mystery', 'Whereigo']
+    if ctype in container_caches: cntr = st.sidebar.radio('What Kind of Container?', ['micro', 'small', 'regular', 'large', 'none/other'])
+    size_dict = {'none/other': 0, 'micro': 1, 'small': 2, 'regular': 3, 'large': 4}
+
+    ctype_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    if ctype=='Earth'             : ctype_list[0] = 1
+    if ctype=='Event'             : ctype_list[1] = 1
+    if ctype=='LetterboX'         : ctype_list[2] = 1
+    if ctype=='Lost & Found Event': ctype_list[3] = 1
+    if ctype=='Maze Exhibit'      : ctype_list[4] = 1
+    if ctype=='Mega Event'        : ctype_list[5] = 1
+    if ctype=='Multi'             : ctype_list[6] = 1
+    if ctype=='Traditional'       : ctype_list[7] = 1
+    if ctype=='Mystery'           : ctype_list[8] = 1
+    if ctype=='Virtual'           : ctype_list[9] = 1
+    if ctype=='Webcam'            : ctype_list[10]= 1
+    if ctype=='Wherigo'           : ctype_list[11]= 1
+
+    test_model = pd.DataFrame({
+        'difficulty'                     : [diff],
+        'terrain'                        : [terr],
+        'size'                           : [size_dict[cntr]],
+        'status'                         : [1],
+        'is_premium'                     : [prmm_dict[prmm]],
+        'short_description'              : [ysno_dict[shds]],
+        'long_description'               : [1],
+        'hints'                          : [ysno_dict[hint]],
+        'travel_bugs'                    : [0],
+        'cache_type_Earth'               : [ctype_list[0]],
+        'cache_type_Event'               : [ctype_list[1]],
+        'cache_type_LetterboX'           : [ctype_list[2]],
+        'cache_type_Lost and Found Event': [ctype_list[3]],
+        'cache_type_Maze Exhibit'        : [ctype_list[4]],
+        'cache_type_Mega event'          : [ctype_list[5]],
+        'cache_type_Multi'               : [ctype_list[6]],
+        'cache_type_Traditional'         : [ctype_list[7]],
+        'cache_type_Unknown/Mystery'     : [ctype_list[8]],
+        'cache_type_Virtual'             : [ctype_list[9]],
+        'cache_type_Webcam'              : [ctype_list[10]],
+        'cache_type_Wherigo'             : [ctype_list[11]]
+    })
+
+    pred = rf.predict(test_model)
+    probs = rf.predict_proba(test_model)
+    probs = 100*np.round(probs[0][1],3)
+    if probs > 99.9: probs = 99.9
+
+    st.header('Your Prediction:')
+    if pred[0]==0:
+        st.write(f'Sorry, a cache with these characteristics will probably NOT reach FavPoints of 2 or more')
+        st.write(f'(probability of success={probs}%.)')
+        st.write('You can try some other permutations if you want, though!')
+    else:
+        st.write(f'This cache is {probs}% likely to reach at least 2 FavPoints.')
+        st.write("So go place it already ... I can't wait to find it.")
+
+    st.write('')
+    st.write('Thank you for using this app! Please email clh@cholland.me if you have any comments or feedback.')
